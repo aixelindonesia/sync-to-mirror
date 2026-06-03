@@ -50,8 +50,8 @@ jobs:
 | `target-repo`     | yes      | —                           | SSH URL of the mirror, `git@github.com:owner/repo.git`   |
 | `ssh-private-key` | yes      | —                           | Private key; pass the repo's existing SSH secret         |
 | `sync-branches`   | no       | `main`                      | Space-separated branch list, e.g. `"main staging"`       |
-| `git-user-name`   | no       | `github-actions[bot]`       | Committer name for the empty sync commit                 |
-| `git-user-email`  | no       | bot noreply                 | Committer email                                          |
+| `git-user-name`   | no       | — (skips commit)            | Committer name for the empty sync commit; needs `git-user-email` too    |
+| `git-user-email`  | no       | — (skips commit)            | Committer email; needs `git-user-name` too                              |
 
 ## One-time setup per consuming repo
 
@@ -68,8 +68,10 @@ jobs:
 
 ## Notes
 
-- Each run appends an empty `chore: sync` commit, so the mirror's history
-  intentionally diverges from origin by these markers.
+- When both `git-user-name` and `git-user-email` are set, each run appends an
+  empty `chore: sync` commit, so the mirror's history intentionally diverges
+  from origin by these markers. Leave both empty to mirror branches verbatim
+  with no extra commit.
 - The push is `--force` — the mirror branch is overwritten; treat it as one-way.
 - Keep `on.push.branches` in sync with `sync-branches`.
 
