@@ -14,7 +14,9 @@ inputs:
       mirror repo. Pass the repo's existing SSH secret from the caller workflow.
     required: true
   sync-branches:
-    description: "Space-separated branches to sync (e.g. 'main staging')."
+    description: >-
+      Space-separated source branches or source:target mappings to sync (e.g.
+      'main staging' or 'dev:main staging:preview').
     required: false
     default: main
   git-user-name:
@@ -68,48 +70,44 @@ runs:
         TARGET_REPO: ${{ inputs.target-repo }}
       run: git remote add mirror "$TARGET_REPO"
 
-    - name: Validate branch names
+    - name: Validate branch mappings
       shell: bash
       env:
         SYNC_BRANCHES: ${{ inputs.sync-branches }}
       run: |
         set -euo pipefail
-        for branch in $SYNC_BRANCHES; do
-          git check-ref-format --branch "$branch" >/dev/null
-          echo "ok: $branch"
+        for spec in $SYNC_BRANCHES; do
+          case "$spec" in
+            *:*:*) echo "invalid sync-branches entry '$spec': expected source or source:target"; exit 1 ;;
+            *:*) source="${spec%%:*}"; target="${spec#*:}" ;;
+            *) source="$spec"; target="$spec" ;;
+          esac
+          if [ -z "$source" ] || [ -z "$target" ]; then
+            echo "invalid sync-branches entry '$spec': source and target are required"; exit 1
+          fi
+          git check-ref-format --branch "$source" >/dev/null
+          git check-ref-format --branch "$target" >/dev/null
+          echo "ok: $source -> $target"
         done
 
-    - name: Check out branches
+    - name: Sync branches to mirror
       shell: bash
       env:
         SYNC_BRANCHES: ${{ inputs.sync-branches }}
+        DO_COMMIT: ${{ inputs.git-user-name != '' && inputs.git-user-email != '' }}
       run: |
         set -euo pipefail
-        for branch in $SYNC_BRANCHES; do
-          echo "Checking out $branch from origin"
-          git checkout -B "$branch" "refs/remotes/origin/$branch"
-        done
-
-    - name: Create sync commits
-      if: inputs.git-user-name != '' && inputs.git-user-email != ''
-      shell: bash
-      env:
-        SYNC_BRANCHES: ${{ inputs.sync-branches }}
-      run: |
-        set -euo pipefail
-        for branch in $SYNC_BRANCHES; do
-          echo "Empty sync commit on $branch"
-          git checkout "$branch"
-          git commit --allow-empty -m "chore: sync"
-        done
-
-    - name: Push branches to mirror
-      shell: bash
-      env:
-        SYNC_BRANCHES: ${{ inputs.sync-branches }}
-      run: |
-        set -euo pipefail
-        for branch in $SYNC_BRANCHES; do
-          echo "Pushing $branch -> mirror/$branch"
-          git push mirror "refs/heads/$branch:refs/heads/$branch" --force --no-thin
+        for spec in $SYNC_BRANCHES; do
+          case "$spec" in
+            *:*) source="${spec%%:*}"; target="${spec#*:}" ;;
+            *) source="$spec"; target="$spec" ;;
+          esac
+          echo "Checking out $source from origin"
+          git checkout -B __mirror_push "refs/remotes/origin/$source"
+          if [ "$DO_COMMIT" = "true" ]; then
+            echo "Empty sync commit on $source"
+            git commit --allow-empty -m "chore: sync"
+          fi
+          echo "Pushing $source -> mirror/$target"
+          git push mirror "HEAD:refs/heads/$target" --force --no-thin
         done

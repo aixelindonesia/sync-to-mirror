@@ -49,9 +49,15 @@ jobs:
 | ----------------- | -------- | --------------------------- | -------------------------------------------------------- |
 | `target-repo`     | yes      | —                           | SSH URL of the mirror, `git@github.com:owner/repo.git`   |
 | `ssh-private-key` | yes      | —                           | Private key; pass the repo's existing SSH secret         |
-| `sync-branches`   | no       | `main`                      | Space-separated branch list, e.g. `"main staging"`       |
+| `sync-branches`   | no       | `main`                      | Space-separated source branches or `source:target` mappings, e.g. `"main staging"` or `"dev:main"` |
 | `git-user-name`   | no       | — (skips commit)            | Committer name for the empty sync commit; needs `git-user-email` too    |
 | `git-user-email`  | no       | — (skips commit)            | Committer email; needs `git-user-name` too                              |
+
+## Branch mapping
+
+- `sync-branches: dev` mirrors source `dev` to mirror `dev`.
+- `sync-branches: dev:main` mirrors source `dev` to mirror `main`.
+- Multiple entries are supported, e.g. `sync-branches: "dev:main staging:preview"`.
 
 ## One-time setup per consuming repo
 
@@ -73,7 +79,7 @@ jobs:
   from origin by these markers. Leave both empty to mirror branches verbatim
   with no extra commit.
 - The push is `--force` — the mirror branch is overwritten; treat it as one-way.
-- Keep `on.push.branches` in sync with `sync-branches`.
+- Keep `on.push.branches` in sync with the source branches in `sync-branches`.
 
 ## Versioning
 
